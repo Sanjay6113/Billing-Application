@@ -12,13 +12,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBEWRpABsy6BxJhJWyBnEThlaIVGU_AYtw",
-  authDomain: "billing-application-f49b3.firebaseapp.com",
-  projectId: "billing-application-f49b3",
-  storageBucket: "billing-application-f49b3.appspot.com",
-  messagingSenderId: "555095007899",
-  appId: "1:555095007899:web:a8ac74d1630239c7ea9c3e",
-  measurementId: "G-XCH9DKCRWH"
+  apiKey: "YOUR API KEY",
+  authDomain: "YOUR AUTH DOMAIN",
+  projectId: "YOUR PROJECT ID",
+  storageBucket: "YOUR STORAGE BUCKET ",
+  messagingSenderId: "YOUR MESSAGING ID",
+  appId: "YOUR APPID",
+  measurementId: "YOUR MEASUREMENTID"
 };
 
 const app = initializeApp(firebaseConfig);
