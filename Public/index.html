@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>South Indian Kitchen</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header card" style="padding:16px; margin-top:20px;">
+      <div class="brand">
+        <div>South Indian Kitchen</div>
+      </div>
+      <span class="badge">QR Order</span>
+      <div>
+        <a class="pill" href="./kitchen.html">Kitchen</a>
+        <a class="pill" href="./billing.html">Billing</a>
+      </div>
+    </div>
+    <div class="card" style="padding:16px; margin-top:20px;">
+      <div class="form" id="cust-form">
+        <input class="input" id="cust-name" placeholder="Customer name" required>
+        <input class="input" id="cust-phone" placeholder="Phone number" required>
+        <input class="input" id="table-no" placeholder="Table number" required>
+        <button class="button" id="save-cust">Continue</button>
+        <span class="small" id="cust-note"></span>
+      </div>
+    </div>
+    <div style="margin-top:16px;">
+      <div class="tabbar" id="tabs"></div>
+      <div class="grid" id="menu"></div>
+    </div>
+    <div class="card cart" id="cartbar" style="display:none;">
+      <div class="cart-total">Total: ₹<span id="total">0.00</span></div>
+      <button class="button secondary" id="place">Proceed to Order</button>
+    </div>
+  </div>
+<script type="module">
+  import { MENU, categories, formatMoney, totalOf, createOrder } from "./app.js";
+
+  (async function main() {
+    try {
+      let customer = null;
+      const nameEl = document.getElementById("cust-name");
+      const phoneEl = document.getElementById("cust-phone");
+      const tableEl = document.getElementById("table-no");
+      const noteEl = document.getElementById("cust-note");
+      const tabsEl = document.getElementById("tabs");
+      const menuEl = document.getElementById("menu");
+      const cartbarEl = document.getElementById("cartbar");
+      const totalEl = document.getElementById("total");
+      const placeBtn = document.getElementById("place");
+      const cart = new Map();
+      let activeCat = categories && categories.length ? categories[0] : "";
+
+      function loadCustomer() {
+        try {
+          customer = JSON.parse(localStorage.getItem("customer")) || null;
+        } catch (err) {
+          customer = null;
+        }
+        if (customer) {
+          if (nameEl) nameEl.value = customer.name || "";
+          if (phoneEl) phoneEl.value = customer.phone || "";
+          if (tableEl) tableEl.value = customer.table || "";
+          if (noteEl) noteEl.textContent = "Saved for faster ordering.";
+        }
+      }
+
+      function saveCustomer() {
+        const name = nameEl?.value?.trim();
+        const phone = phoneEl?.value?.trim();
+        const table = tableEl?.value?.trim();
+        if (!name || !phone || !table) {
+          alert("Please fill name, phone and table number");
+          return;
+        }
+        customer = { name, phone, table };
+        localStorage.setItem("customer", JSON.stringify(customer));
+        if (noteEl) noteEl.textContent = "Saved.";
+      }
+
+      function renderTabs() {
+        if (!tabsEl || !categories) return;
+        tabsEl.innerHTML = "";
+        categories.forEach(cat => {
+          const btn = document.createElement("button");
+          btn.className = "tab" + (cat === activeCat ? " active" : "");
+          btn.textContent = cat;
+          btn.addEventListener("click", () => {
+            activeCat = cat;
+            renderTabs();
+            renderMenu();
+          });
+          tabsEl.appendChild(btn);
+        });
+      }
+
+      function setQty(item, delta) {
+        if (!item) return;
+        const current = cart.get(item.id) || { ...item, qty: 0 };
+        const next = Math.max(0, current.qty + delta);
+        if (next === 0) {
+          cart.delete(item.id);
+        } else {
+          cart.set(item.id, { ...item, qty: next });
+        }
+        renderMenu();
+        renderCartbar();
+      }
+
+      function renderMenu() {
+        if (!menuEl || !MENU) return;
+        menuEl.innerHTML = "";
+        MENU.filter(item => item.cat === activeCat).forEach(item => {
+          const wrap = document.createElement("div");
+          wrap.className = "card item";
+          wrap.innerHTML = `
+            <div class="thumb">
+              <img src="${item.photo}" alt="${item.name}">
+            </div>
+            <div class="item-body">
+              <div class="item-title">
+                <span>${item.name}</span>
+                <span class="price">₹${formatMoney(item.price)}</span>
+              </div>
+              <div class="qty">
+                <button data-act="dec">-</button>
+                <span data-role="q">${cart.get(item.id)?.qty || 0}</span>
+                <button data-act="inc">+</button>
+              </div>
+            </div>
+          `;
+          wrap.querySelectorAll("button").forEach(btn => {
+            btn.addEventListener("click", evt => {
+              evt.stopPropagation();
+              const act = btn.getAttribute("data-act");
+              if (act === "inc") setQty(item, 1);
+              if (act === "dec") setQty(item, -1);
+            });
+          });
+          menuEl.appendChild(wrap);
+        });
+      }
+
+      function renderCartbar() {
+        if (!cartbarEl || !totalEl) return;
+        const items = [...cart.values()];
+        const total = totalOf(items.map(entry => ({ price: entry.price, qty: entry.qty })));
+        totalEl.textContent = formatMoney(total);
+        cartbarEl.style.display = items.length ? "flex" : "none";
+      }
+
+      async function placeOrder() {
+        if (!customer) {
+          alert("Save customer details first.");
+          return;
+        }
+        const items = [...cart.values()];
+        if (!items.length) {
+          alert("Add items to cart.");
+          return;
+        }
+        const payload = {
+          customer,
+          items: items.map(entry => ({ id: entry.id, name: entry.name, price: entry.price, qty: entry.qty })),
+          total: totalOf(items.map(entry => ({ price: entry.price, qty: entry.qty })))
+        };
+        try {
+          await createOrder(payload);
+          cart.clear();
+          renderMenu();
+          renderCartbar();
+          alert("Order placed.");
+        } catch (err) {
+          alert("Failed to place order. Check Firebase config.");
+          console.error("createOrder failed:", err);
+        }
+      }
+
+      // Attach handlers
+      const saveBtn = document.getElementById("save-cust");
+      if (saveBtn) saveBtn.addEventListener("click", saveCustomer);
+      if (placeBtn) placeBtn.addEventListener("click", placeOrder);
+
+      // Initialize
+      loadCustomer();
+      renderTabs();
+      renderMenu();
+      renderCartbar();
+
+      // Optionally set a global flag to help debugging
+      window.appInitialized = true;
+
+    } catch (err) {
+      console.error("Initialization error:", err);
+      alert("App failed to start: " + (err?.message || err));
+    }
+  })();
+</script>
+</body>
+</html>

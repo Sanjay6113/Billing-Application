@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Billing Dashboard</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header card" style="padding:16px; margin-top:20px;">
+      <div class="brand">
+        <div>Billing Desk</div>
+      </div>
+      <span class="badge">Receipt Center</span>
+      <div>
+        <a class="pill" href="./index.html">Menu</a>
+        <a class="pill" href="./kitchen.html">Kitchen</a>
+      </div>
+    </div>
+    <div class="card" style="padding:16px; margin-top:20px;">
+      <div class="tabbar" id="status-tabs"></div>
+      <div class="order" id="orders"></div>
+    </div>
+  </div>
+  <script type="module">
+    import { listenOrders, setStatus, formatMoney } from "./app.js";
+
+    const filters = ["new", "preparing", "ready", "all"];
+    const tabsEl = document.getElementById("status-tabs");
+    const ordersEl = document.getElementById("orders");
+    const state = { filter: "new", orders: [] };
+
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      filters.forEach(filter => {
+        const btn = document.createElement("button");
+        btn.className = "tab" + (filter === state.filter ? " active" : "");
+        btn.textContent = filter === "all" ? "All" : filter[0].toUpperCase() + filter.slice(1);
+        btn.addEventListener("click", () => {
+          state.filter = filter;
+          renderOrders();
+          renderTabs();
+        });
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderOrders() {
+      ordersEl.innerHTML = "";
+      state.orders
+        .filter(order => state.filter === "all" || order.status === state.filter)
+        .forEach(order => {
+          const card = document.createElement("div");
+          card.className = "card";
+          const header = document.createElement("div");
+          header.className = "line";
+          const title = document.createElement("div");
+          title.innerHTML = `<strong>${order.customer?.name ?? "Guest"}</strong><span>Table ${order.customer?.table ?? "-"}</span>`;
+          const status = document.createElement("span");
+          status.className = `status ${order.status}`;
+          status.textContent = order.status?.toUpperCase() ?? "NEW";
+          header.append(title, status);
+          const info = document.createElement("div");
+          info.className = "line";
+          info.innerHTML = `<span>${order.customer?.phone ?? ""}</span><span>${order.items?.length ?? 0} items</span>`;
+          const list = document.createElement("div");
+          list.className = "order";
+          order.items?.forEach(item => {
+            const row = document.createElement("div");
+            row.className = "line";
+            const lineTotal = (item.price ?? 0) * (item.qty ?? 0);
+            row.innerHTML = `<span>${item.name} × ${item.qty}</span><span>₹${formatMoney(lineTotal)}</span>`;
+            list.appendChild(row);
+          });
+          const total = document.createElement("div");
+          total.className = "line";
+          total.innerHTML = `<span>Total</span><span>₹${formatMoney(order.total ?? 0)}</span>`;
+          const actions = document.createElement("div");
+          actions.className = "tabbar";
+          if (order.status !== "ready") {
+            const ready = document.createElement("button");
+            ready.className = "tab";
+            ready.textContent = "Mark Ready";
+            ready.addEventListener("click", () => updateStatus(order.id, "ready"));
+            actions.appendChild(ready);
+          }
+          card.append(header, info, list, total, actions);
+          ordersEl.appendChild(card);
+        });
+    }
+
+    async function updateStatus(id, status) {
+      try {
+        await setStatus(id, status);
+      } catch (err) {
+        alert("Failed to update status.");
+      }
+    }
+
+    listenOrders(orders => {
+      state.orders = orders;
+      renderOrders();
+    });
+
+    renderTabs();
+  </script>
+</body>
+</html>

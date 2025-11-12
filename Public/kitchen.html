@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kitchen Dashboard</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header card" style="padding:16px; margin-top:20px;">
+      <div class="brand">
+        <div>Kitchen View</div>
+      </div>
+      <span class="badge">Live Orders</span>
+      <div>
+        <a class="pill" href="./index.html">Menu</a>
+        <a class="pill" href="./billing.html">Billing</a>
+      </div>
+    </div>
+    <div class="card" style="padding:16px; margin-top:20px;">
+      <div class="tabbar" id="status-tabs"></div>
+      <div class="order" id="orders"></div>
+    </div>
+  </div>
+  <script type="module">
+    import { listenOrders, setStatus } from "./app.js";
+
+    const filters = ["new", "preparing", "ready", "all"];
+    const tabsEl = document.getElementById("status-tabs");
+    const ordersEl = document.getElementById("orders");
+    const state = { filter: "new", orders: [] };
+
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      filters.forEach(filter => {
+        const btn = document.createElement("button");
+        btn.className = "tab" + (filter === state.filter ? " active" : "");
+        btn.textContent = filter === "all" ? "All" : filter[0].toUpperCase() + filter.slice(1);
+        btn.addEventListener("click", () => {
+          state.filter = filter;
+          renderOrders();
+          renderTabs();
+        });
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderOrders() {
+      ordersEl.innerHTML = "";
+      state.orders
+        .filter(order => state.filter === "all" || order.status === state.filter)
+        .forEach(order => {
+          const card = document.createElement("div");
+          card.className = "card";
+          const header = document.createElement("div");
+          header.className = "line";
+          const title = document.createElement("div");
+          title.innerHTML = `<strong>Table ${order.customer?.table ?? "-"}</strong><span>${order.customer?.name ?? "Guest"}</span>`;
+          const status = document.createElement("span");
+          status.className = `status ${order.status}`;
+          status.textContent = order.status?.toUpperCase() ?? "NEW";
+          header.append(title, status);
+          const list = document.createElement("div");
+          list.className = "order";
+          order.items?.forEach(item => {
+            const row = document.createElement("div");
+            row.className = "line";
+            row.innerHTML = `<span>${item.name}</span><span>x${item.qty}</span>`;
+            list.appendChild(row);
+          });
+          const actions = document.createElement("div");
+          actions.className = "tabbar";
+          if (order.status !== "preparing") {
+            const prep = document.createElement("button");
+            prep.className = "tab";
+            prep.textContent = "Mark Preparing";
+            prep.addEventListener("click", () => updateStatus(order.id, "preparing"));
+            actions.appendChild(prep);
+          }
+          if (order.status !== "ready") {
+            const ready = document.createElement("button");
+            ready.className = "tab";
+            ready.textContent = "Mark Ready";
+            ready.addEventListener("click", () => updateStatus(order.id, "ready"));
+            actions.appendChild(ready);
+          }
+          card.append(header, list, actions);
+          ordersEl.appendChild(card);
+        });
+    }
+
+    async function updateStatus(id, status) {
+      try {
+        await setStatus(id, status);
+      } catch (err) {
+        alert("Failed to update status.");
+      }
+    }
+
+    listenOrders(orders => {
+      state.orders = orders;
+      renderOrders();
+    });
+
+    renderTabs();
+  </script>
+</body>
+</html>
